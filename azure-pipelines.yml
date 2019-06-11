@@ -1,0 +1,41 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+# push unity version tag you want to install
+trigger:
+- refs/tags/*
+pool:
+  name: Your_Private_Agent_Pool
+
+steps:
+- checkout: self
+  clean: true
+  fetchDepth: 1
+  lfs: false
+
+- powershell: |
+    $isTag = [regex]::IsMatch($Env:BUILD_SOURCEBRANCH, "^(refs\/tags\/)")
+    Write-Host "##vso[task.setvariable variable=istag]$isTag"
+    Write-Host $env:Build_SourceBranchName
+  displayName: 'Check version tag or not'
+  failOnStderr: true
+
+- powershell: |
+    Install-PackageProvider nuget -force
+    Set-PackageSource -Name PSGallery -Trusted -Force
+    Install-Module PowerShellGet -AllowClobber -Force -Scope CurrentUser
+  condition: and(succeeded(), eq(variables['istag'], 'True'))
+  displayName: 'Update PowerShellGet'
+  failOnStderr: true
+
+- powershell: Install-Module -Name UnitySetup -AllowPrerelease -Scope CurrentUser -Force
+  condition: and(succeeded(), eq(variables['istag'], 'True'))
+  displayName: 'Install UnitySetup Module'
+  failOnStderr: true
+
+- powershell: Install-UnitySetupInstance -Installers (Find-UnitySetupInstaller -Version "$env:Build_SourceBranchName" -Components Windows,UWP_IL2CPP,iOS) -Verbose
+  condition: and(succeeded(), eq(variables['istag'], 'True'))
+  displayName: 'Install Unity'
+  failOnStderr: true
